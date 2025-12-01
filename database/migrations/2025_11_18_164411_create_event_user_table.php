@@ -14,6 +14,7 @@ return new class extends Migration {
             $table->id();
             $table->foreignId('event_id')->constrained()->cascadeOnDelete();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+            $table->boolean('is_leader')->default(false);
             $table->timestamp('assigned_at')->useCurrent();
             $table->timestamps();
             $table->unique(['event_id', 'user_id']);

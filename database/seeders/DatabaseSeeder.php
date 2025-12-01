@@ -38,14 +38,22 @@ class DatabaseSeeder extends Seeder
             'event_date' => '2025-11-30',
         ]);
 
-        // 4. Assign Decision Makers to Events
-        $event1->users()->attach($decisionMakers->pluck('id')->toArray(), [
-            'assigned_at' => now(),
-        ]);
+        // 4. Assign Decision Makers to Events (with leader designation)
+        // Event 1: All 3 DMs, first one is leader
+        foreach ($decisionMakers as $index => $dm) {
+            $event1->users()->attach($dm->id, [
+                'is_leader' => $index === 0, // First DM is leader
+                'assigned_at' => now(),
+            ]);
+        }
 
-        $event2->users()->attach($decisionMakers->take(2)->pluck('id')->toArray(), [
-            'assigned_at' => now(),
-        ]);
+        // Event 2: First 2 DMs, first one is leader
+        foreach ($decisionMakers->take(2) as $index => $dm) {
+            $event2->users()->attach($dm->id, [
+                'is_leader' => $index === 0, // First DM is leader
+                'assigned_at' => now(),
+            ]);
+        }
 
         // 5. Create Alternatives for Event 1
         $alternatives1 = collect([

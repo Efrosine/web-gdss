@@ -53,10 +53,9 @@ class CriterionResource extends Resource
                     ->required()
                     ->numeric()
                     ->minValue(0.01)
-                    ->maxValue(1.00)
                     ->step(0.01)
-                    ->default(0.20)
-                    ->helperText('Weight should sum to 1.00 across all criteria for an event'),
+                    ->default(1.00)
+                    ->helperText('Weights will be automatically normalized (each weight divided by sum of all weights)'),
                 Select::make('attribute_type')
                     ->options([
                         'benefit' => 'Benefit (Higher is better)',

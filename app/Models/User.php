@@ -26,6 +26,7 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
+        'position',
     ];
 
     /**
@@ -54,7 +55,7 @@ class User extends Authenticatable
     public function events(): BelongsToMany
     {
         return $this->belongsToMany(Event::class)
-            ->withPivot('assigned_at')
+            ->withPivot('is_leader', 'assigned_at')
             ->withTimestamps();
     }
 
@@ -66,5 +67,30 @@ class User extends Authenticatable
     public function wpResults(): HasMany
     {
         return $this->hasMany(WpResult::class);
+    }
+
+    public function isLeaderOf(int $eventId): bool
+    {
+        return $this->events()
+            ->where('events.id', $eventId)
+            ->wherePivot('is_leader', true)
+            ->exists();
+    }
+
+    public function isAssignedTo(int $eventId): bool
+    {
+        return $this->events()
+            ->where('events.id', $eventId)
+            ->exists();
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->role === 'admin';
+    }
+
+    public function isDecisionMaker(): bool
+    {
+        return $this->role === 'decision_maker';
     }
 }

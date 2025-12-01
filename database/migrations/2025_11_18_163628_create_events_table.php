@@ -14,6 +14,7 @@ return new class extends Migration {
             $table->id();
             $table->string('event_name');
             $table->date('event_date');
+            $table->json('borda_settings')->nullable();
             $table->timestamps();
         });
     }

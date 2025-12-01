@@ -17,12 +17,14 @@ class Event extends Model
     protected $fillable = [
         'event_name',
         'event_date',
+        'borda_settings',
     ];
 
     protected function casts(): array
     {
         return [
             'event_date' => 'date',
+            'borda_settings' => 'array',
         ];
     }
 
@@ -36,9 +38,22 @@ class Event extends Model
         return $this->hasMany(Criterion::class);
     }
 
+    public function decisionMakers(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'event_user')
+            ->withPivot('is_leader', 'assigned_at')
+            ->withTimestamps();
+    }
+
     public function users(): BelongsToMany
     {
-        return $this->belongsToMany(User::class)
+        return $this->decisionMakers();
+    }
+
+    public function leaders(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'event_user')
+            ->wherePivot('is_leader', true)
             ->withPivot('assigned_at')
             ->withTimestamps();
     }
@@ -56,5 +71,15 @@ class Event extends Model
     public function bordaResults(): HasMany
     {
         return $this->hasMany(BordaResult::class);
+    }
+
+    public function getLeader(): ?User
+    {
+        return $this->leaders()->first();
+    }
+
+    public function hasLeader(): bool
+    {
+        return $this->leaders()->exists();
     }
 }

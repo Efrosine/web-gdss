@@ -27,7 +27,7 @@ class EventPolicy
         }
 
         // Decision makers can only view events they're assigned to
-        return $event->users()->where('user_id', $user->id)->exists();
+        return $user->isAssignedTo($event->id);
     }
 
     /**
@@ -68,5 +68,31 @@ class EventPolicy
     public function forceDelete(User $user, Event $event): bool
     {
         return $user->role === 'admin';
+    }
+
+    /**
+     * Determine whether the user can trigger calculation for the event.
+     */
+    public function calculate(User $user, Event $event): bool
+    {
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        // Event leaders can trigger calculation
+        return $user->isLeaderOf($event->id);
+    }
+
+    /**
+     * Determine whether the user can modify Borda settings for the event.
+     */
+    public function modifyBordaSettings(User $user, Event $event): bool
+    {
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        // Event leaders can modify Borda settings
+        return $user->isLeaderOf($event->id);
     }
 }

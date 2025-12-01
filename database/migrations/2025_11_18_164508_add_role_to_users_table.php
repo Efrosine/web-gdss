@@ -12,6 +12,7 @@ return new class extends Migration {
     {
         Schema::table('users', function (Blueprint $table) {
             $table->enum('role', ['admin', 'decision_maker'])->default('decision_maker')->after('email');
+            $table->string('position')->nullable()->after('role');
         });
     }
 
@@ -21,7 +22,7 @@ return new class extends Migration {
     public function down(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->dropColumn('role');
+            $table->dropColumn(['role', 'position']);
         });
     }
 };
