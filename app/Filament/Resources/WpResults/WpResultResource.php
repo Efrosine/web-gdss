@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Filament\Resources\WpResults;
 
-use App\Filament\Resources\WpResults\Pages\ListWpResults;
+use App\Filament\Resources\WpResults\Pages\ViewWpMatrix;
 use App\Filament\Resources\WpResults\Pages\ViewWpResult;
 use App\Filament\Resources\WpResults\Schemas\WpResultInfolist;
 use App\Filament\Resources\WpResults\Tables\WpResultsTable;
@@ -70,7 +70,7 @@ class WpResultResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => ListWpResults::route('/'),
+            'index' => ViewWpMatrix::route('/'),
             'view' => ViewWpResult::route('/{record}'),
         ];
     }
