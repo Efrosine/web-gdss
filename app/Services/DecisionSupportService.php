@@ -12,6 +12,7 @@ use App\Models\Event;
 use App\Models\User;
 use App\Models\WpResult;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
 
 class DecisionSupportService
@@ -344,15 +345,41 @@ class DecisionSupportService
             throw new InvalidArgumentException("Event {$eventId} has no alternatives.");
         }
 
-        // Get custom Borda settings if available (could be JSON string or array/object)
+        // Get custom Borda settings if available
+        // borda_settings is cast as 'array' in Event model, so it's already an array
         $bordaSettings = $event->borda_settings;
-        if (is_string($bordaSettings) && $bordaSettings !== '') {
-            $decoded = json_decode($bordaSettings, true);
-            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
-                $bordaSettings = $decoded;
-            } else {
-                $bordaSettings = null;
+        
+        Log::info('Borda Settings Debug - Raw', [
+            'event_id' => $eventId,
+            'raw_borda_settings' => $bordaSettings,
+            'is_array' => is_array($bordaSettings),
+            'is_empty' => empty($bordaSettings),
+            'type' => gettype($bordaSettings),
+        ]);
+        
+        // Transform array of objects [{key: "1", value: "100"}, ...] to associative array ["1" => "100", ...]
+        if (is_array($bordaSettings) && !empty($bordaSettings)) {
+            // Check if it's an array of objects with 'key' and 'value' properties
+            $firstItem = reset($bordaSettings);
+            if (is_array($firstItem) && isset($firstItem['key']) && isset($firstItem['value'])) {
+                $transformed = [];
+                foreach ($bordaSettings as $item) {
+                    if (isset($item['key']) && isset($item['value'])) {
+                        $transformed[$item['key']] = $item['value'];
+                    }
+                }
+                $bordaSettings = $transformed;
+                Log::info('Transformed Borda settings from key-value pairs to associative array', [
+                    'transformed' => $bordaSettings,
+                ]);
             }
+        }
+        
+        if (!is_array($bordaSettings) || empty($bordaSettings)) {
+            Log::info('Using default Borda formula (no custom settings)');
+            $bordaSettings = null;
+        } else {
+            Log::info('Using custom Borda settings', ['settings' => $bordaSettings]);
         }
 
         // Calculate Borda points for each alternative
@@ -364,15 +391,61 @@ class DecisionSupportService
                 ->pluck('individual_rank');
 
             // Calculate total points using custom or default formula
+            $totalPoints = 0;
+            
             if ($bordaSettings && is_array($bordaSettings)) {
-                $totalPoints = 0;
+                Log::info('Calculating with custom Borda settings', [
+                    'alternative_id' => $alternativeId,
+                    'ranks' => $ranks->toArray(),
+                ]);
+                
                 foreach ($ranks as $rank) {
+                    // Convert rank to string key as array keys are strings
+                    $rankKey = (string) $rank;
+                    
+                    Log::info('Checking rank in custom settings', [
+                        'rank' => $rank,
+                        'rank_type' => gettype($rank),
+                        'rankKey' => $rankKey,
+                        'isset_rank' => isset($bordaSettings[$rank]),
+                        'isset_rankKey' => isset($bordaSettings[$rankKey]),
+                        'array_keys' => array_keys($bordaSettings),
+                        'borda_settings' => $bordaSettings,
+                    ]);
+                    
                     // if custom setting exists for this rank, use it; otherwise use default (n - rank)
-                    $totalPoints += $bordaSettings[$rank] ?? ($totalAlternatives - $rank);
+                    $issetRankKey = isset($bordaSettings[$rankKey]);
+                    $isNumeric = $issetRankKey ? is_numeric($bordaSettings[$rankKey]) : false;
+                    
+                    Log::info('IF condition check', [
+                        'rank' => $rank,
+                        'rankKey' => $rankKey,
+                        'isset($bordaSettings[$rankKey])' => $issetRankKey,
+                        'is_numeric($bordaSettings[$rankKey])' => $isNumeric,
+                        'value_if_isset' => $issetRankKey ? $bordaSettings[$rankKey] : 'NOT_SET',
+                        'combined_condition' => ($issetRankKey && $isNumeric),
+                    ]);
+                    
+                    if ($issetRankKey && $isNumeric) {
+                        $points = (float) $bordaSettings[$rankKey];
+                        Log::info('Using custom points', ['rank' => $rank, 'points' => $points]);
+                    } else {
+                        $points = ($totalAlternatives - $rank);
+                        Log::info('Using default points (rank not in custom settings)', [
+                            'rank' => $rank, 
+                            'points' => $points,
+                            'reason' => !$issetRankKey ? 'key not isset' : 'value not numeric'
+                        ]);
+                    }
+                    $totalPoints += $points;
                 }
             } else {
-                // Default Borda formula requested by user: Points = (Total_Alternatives - Rank)
-                $totalPoints = 0;
+                Log::info('Calculating with default Borda formula', [
+                    'alternative_id' => $alternativeId,
+                    'ranks' => $ranks->toArray(),
+                ]);
+                
+                // Default Borda formula: Points = (Total_Alternatives - Rank)
                 foreach ($ranks as $rank) {
                     $totalPoints += ($totalAlternatives - $rank);
                 }
