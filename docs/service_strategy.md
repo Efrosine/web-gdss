@@ -46,13 +46,21 @@ $$V_{ua} = \frac{S_{ua}}{\sum_{all\_alternatives} S_{u}}$$
 
 ## 3. Algorithm 2: Borda Aggregation (with Leader Customization)
 
-**Goal:** Combine individual DM ranks into a final group decision.
+**Goal:** Combine individual DM ranks into a final group decision using ranking frequency distribution.
 
-### Step A: Points Assignment (Dynamic Formula)
+### Step A: Borda Value Mapping (Dynamic Formula)
 
-**Default Formula:** $Points = (Total\_Alternatives - Rank)$
+**Default Formula:** $BordaValue[Rank] = (Total\_Alternatives - Rank)$
 
-**Leader Override:** If `events.borda_settings` JSON exists, use custom point mapping:
+For example, with 10 alternatives:
+
+-   Rank 1 → Borda Value 9
+-   Rank 2 → Borda Value 8
+-   Rank 3 → Borda Value 7
+-   ...
+-   Rank 10 → Borda Value 0
+
+**Leader Override:** If `events.borda_settings` JSON exists, use custom Borda value mapping:
 
 ```json
 {
@@ -64,20 +72,64 @@ $$V_{ua} = \frac{S_{ua}}{\sum_{all\_alternatives} S_{u}}$$
 }
 ```
 
-_(Where key = rank, value = points)_
+_(Where key = rank, value = Borda value)_
 
 **Logic Rules:**
 
 1. Fetch `events.borda_settings` for the event. If NULL, use default formula.
 2. Count distinct `alternative_id` in `wp_results` for this Event ($N$).
-3. For each Alternative:
-    - Fetch all `individual_rank` values from `wp_results` (from all DMs).
-    - **IF custom settings exist:** Sum points using mapping: $\sum BordaSettings[Rank]$.
-    - **ELSE:** Sum points using default: $\sum (N - Rank)$.
+3. Build Borda Value mapping table for all possible ranks (1 to $N$).
 
-### Step B: Final Ranking
+### Step B: V-Vector Aggregation by Rank Position
 
-1. Store sum in `borda_results` (`total_borda_points`).
+For each Alternative at each Rank Position:
+
+1. Fetch all `wp_results` (V-vector values) for the alternative.
+2. Group by the rank position that each DM assigned to that alternative.
+3. Sum the V-vector values for each rank position.
+
+**Example:** If Alternative A1:
+
+-   DM-1 ranked it #1 with V-vector = 0.34507
+-   DM-2 ranked it #1 with V-vector = 0.28000
+-   DM-3 ranked it #2 with V-vector = 0.22328
+
+Then:
+
+-   A1 at Rank 1: Sum = 0.34507 + 0.28000 = 0.62507
+-   A1 at Rank 2: Sum = 0.22328
+
+### Step C: Borda Points Calculation
+
+For each Alternative, calculate total Borda points:
+
+$$BordaPoints_a = \sum_{r=1}^{N} (VSum_{ar} \times BordaValue[r])$$
+
+Where:
+
+-   $VSum_{ar}$ = Sum of V-vector values from all DMs who ranked alternative $a$ at rank position $r$
+-   $BordaValue[r]$ = Borda value for rank position $r$ (from custom settings or default formula)
+
+**Calculation Steps:**
+
+1. For each alternative, iterate through all possible ranks (1 to $N$).
+2. Sum all V-vector values from `wp_results` where the alternative received that specific rank across all DMs.
+3. Multiply the sum by the Borda value for that rank.
+4. Sum all products to get total Borda points.
+
+**Example Calculation:**
+
+-   Alternative A1: (0.62507 at rank 1 × 9) + (0.22328 at rank 2 × 8) + ... = Total Borda Points
+
+### Step D: Borda Value Normalization
+
+$$BordaValue_a = \frac{BordaPoints_a}{\sum_{all\_alternatives} BordaPoints}$$
+
+This provides a normalized value between 0 and 1 for comparison.
+
+### Step E: Final Ranking
+
+1. Store `total_borda_points` and `borda_value` in `borda_results` table.
 2. Sort `borda_results` by `total_borda_points` DESCENDING.
 3. Assign `final_rank` (1, 2, 3...).
 

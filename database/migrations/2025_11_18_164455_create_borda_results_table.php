@@ -14,7 +14,7 @@ return new class extends Migration {
             $table->id();
             $table->foreignId('event_id')->constrained()->cascadeOnDelete();
             $table->foreignId('alternative_id')->constrained()->cascadeOnDelete();
-            $table->integer('total_borda_points');
+            $table->decimal('total_borda_points', 20, 10);
             $table->unsignedInteger('final_rank');
             $table->timestamps();
             $table->unique(['event_id', 'alternative_id']);
