@@ -23,7 +23,7 @@ class BordaResult extends Model
     protected function casts(): array
     {
         return [
-            'total_borda_points' => 'integer',
+            'total_borda_points' => 'decimal:10',
             'final_rank' => 'integer',
         ];
     }

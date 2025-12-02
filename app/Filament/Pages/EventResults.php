@@ -44,6 +44,7 @@ class EventResults extends Page implements HasForms, HasTable
     public ?array $bordaSettings = null;
     public ?array $completenessData = null;
     public bool $canManage = false;
+    public ?array $bordaMatrix = null;
 
     public function form(Schema $schema): Schema
     {
@@ -54,7 +55,7 @@ class EventResults extends Page implements HasForms, HasTable
                     ->options(function () {
                         $user = Auth::user();
                         if ($user->isAdmin()) {
-                            return Event::pluck('event_name', 'event_id');
+                            return Event::pluck('event_name', 'id');
                         }
                         // Decision makers see only assigned events
                         return $user->events()->pluck('event_name', 'event_id');
@@ -146,6 +147,7 @@ class EventResults extends Page implements HasForms, HasTable
             $this->completenessData = null;
             $this->canManage = false;
             $this->bordaSettings = null;
+            $this->bordaMatrix = null;
             return;
         }
 
@@ -161,6 +163,9 @@ class EventResults extends Page implements HasForms, HasTable
         // Load completeness data
         $service = app(DecisionSupportService::class);
         $this->completenessData = $service->getEvaluationCompleteness($this->selectedEventId);
+
+        // Load Borda matrix data for display
+        $this->loadBordaMatrix();
     }
 
     public function table(Table $table): Table
@@ -182,7 +187,7 @@ class EventResults extends Page implements HasForms, HasTable
 
                 TextColumn::make('total_borda_points')
                     ->label('Borda Points')
-                    ->numeric()
+                    ->numeric(decimalPlaces: 4)
                     ->sortable(),
 
                 TextColumn::make('final_rank')
@@ -196,6 +201,76 @@ class EventResults extends Page implements HasForms, HasTable
                     ->sortable(),
             ])
             ->defaultSort('final_rank', 'asc');
+    }
+
+    protected function loadBordaMatrix(): void
+    {
+        if (!$this->selectedEventId) {
+            $this->bordaMatrix = null;
+            return;
+        }
+
+        $wpResults = \App\Models\WpResult::where('event_id', $this->selectedEventId)
+            ->with('alternative')
+            ->get();
+
+        if ($wpResults->isEmpty()) {
+            $this->bordaMatrix = null;
+            return;
+        }
+
+        $bordaResults = \App\Models\BordaResult::where('event_id', $this->selectedEventId)
+            ->with('alternative')
+            ->orderBy('final_rank')
+            ->get()
+            ->keyBy('alternative_id');
+
+        // Get total alternatives for max rank
+        $totalAlternatives = $wpResults->pluck('alternative_id')->unique()->count();
+
+        // Build matrix: alternative_id => [rank => sum of v_vectors]
+        $matrix = [];
+        foreach ($wpResults as $wp) {
+            $altId = $wp->alternative_id;
+            $rank = $wp->individual_rank;
+
+            if (!isset($matrix[$altId])) {
+                $matrix[$altId] = [
+                    'alternative_name' => $wp->alternative->name,
+                    'ranks' => array_fill(1, $totalAlternatives, 0), // Initialize all ranks with 0
+                ];
+            }
+
+            // Sum v_vectors for this alternative at this rank
+            $matrix[$altId]['ranks'][$rank] += $wp->v_vector;
+        }
+
+        // Add Borda results to matrix
+        foreach ($matrix as $altId => &$data) {
+            if (isset($bordaResults[$altId])) {
+                $data['borda_points'] = $bordaResults[$altId]->total_borda_points;
+                $data['final_rank'] = $bordaResults[$altId]->final_rank;
+
+                // Calculate Borda Value (normalized)
+                $totalBordaPoints = $bordaResults->sum('total_borda_points');
+                $data['borda_value'] = $totalBordaPoints > 0
+                    ? $bordaResults[$altId]->total_borda_points / $totalBordaPoints
+                    : 0;
+            } else {
+                $data['borda_points'] = 0;
+                $data['borda_value'] = 0;
+                $data['final_rank'] = 999;
+            }
+        }
+
+        // Sort by final rank
+        uasort($matrix, fn($a, $b) => $a['final_rank'] <=> $b['final_rank']);
+
+        $this->bordaMatrix = [
+            'data' => $matrix,
+            'max_rank' => $totalAlternatives,
+            'total_borda_points' => $bordaResults->sum('total_borda_points'),
+        ];
     }
 
     public static function canAccess(): bool

@@ -34,7 +34,7 @@ class BordaResultsTable
                     ->sortable(),
                 TextColumn::make('total_borda_points')
                     ->label('Total Borda Points')
-                    ->numeric(decimalPlaces: 0)
+                    ->numeric(decimalPlaces: 4)
                     ->sortable(),
             ])
             ->defaultGroup(
