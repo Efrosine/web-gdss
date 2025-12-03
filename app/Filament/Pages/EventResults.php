@@ -40,7 +40,7 @@ class EventResults extends Page implements HasForms, HasTable
 
     protected static ?string $navigationLabel = 'Results Dashboard';
 
-    protected static ?int $navigationSort = 1;
+    protected static ?int $navigationSort = 6;
 
     protected string $view = 'filament.pages.event-results';
 

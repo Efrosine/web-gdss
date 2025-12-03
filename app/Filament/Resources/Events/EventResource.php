@@ -25,9 +25,9 @@ class EventResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedCalendar;
 
-    protected static string|UnitEnum|null $navigationGroup = 'Events Management';
+    protected static string|UnitEnum|null $navigationGroup = 'Management';
 
-    protected static ?int $navigationSort = 1;
+    protected static ?int $navigationSort = 0;
 
     public static function canViewAny(): bool
     {

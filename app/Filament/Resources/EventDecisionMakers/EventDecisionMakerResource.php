@@ -27,7 +27,7 @@ class EventDecisionMakerResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedUserGroup;
 
-    protected static string|UnitEnum|null $navigationGroup = 'Event Management';
+    protected static string|UnitEnum|null $navigationGroup = 'Management';
 
     protected static ?string $navigationLabel = 'DM Assignments';
 

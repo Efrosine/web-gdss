@@ -46,7 +46,7 @@ class BordaRankingsWidget extends TableWidget
                 TextColumn::make('total_borda_points')
                     ->label('Borda Points')
                     ->sortable()
-                    ->numeric(decimalPlaces: 0),
+                    ->numeric(decimalPlaces: 4),
             ])
             ->defaultGroup(
                 Group::make('event.event_name')
