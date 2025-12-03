@@ -59,10 +59,35 @@
                 </x-filament::section>
             @endif
 
+            {{-- Individual WP Results Matrix --}}
+            @if ($userId)
+                <x-filament::section>
+                    <x-slot name="heading">
+                        Individual WP Results Matrix
+                    </x-slot>
+
+                    <x-slot name="description">
+                        Viewing detailed WP calculations from:
+                        <strong>{{ \App\Models\User::find($userId)?->name }}</strong>
+                    </x-slot>
+
+                    @include('filament.resources.wp-results.components.view-wp-matrix', [
+                        'alternatives' => $this->getAlternatives(),
+                        'criteria' => $this->getCriteria(),
+                        'matrixData' => $this->getMatrixData(),
+                        'totalSVector' => $this->getTotalSVector(),
+                    ])
+                </x-filament::section>
+            @endif
+
             {{-- Results Table --}}
             <x-filament::section>
                 <x-slot name="heading">
-                    Borda Ranking Matrix
+                    Final Borda Ranking (Aggregated Results)
+                </x-slot>
+
+                <x-slot name="description">
+                    Shows aggregated rankings from all decision makers using the Borda method
                 </x-slot>
 
                 @if ($bordaMatrix && count($bordaMatrix['data']) > 0)
@@ -108,7 +133,11 @@
                                 @foreach ($bordaMatrix['data'] as $altId => $row)
                                     <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                                         <td class="px-4 py-3 font-medium border border-gray-300 dark:border-gray-600">
-                                            {{ $row['alternative_name'] }}
+                                            <div class="space-y-1">
+                                                <div class="font-semibold">{{ $row['alternative_code'] }}</div>
+                                                <div class="text-xs font-normal text-gray-500 dark:text-gray-400">
+                                                    {{ $row['alternative_name'] }}</div>
+                                            </div>
                                         </td>
                                         @for ($rank = 1; $rank <= $bordaMatrix['max_rank']; $rank++)
                                             <td

@@ -72,6 +72,10 @@
                                     class="px-3 py-3.5 text-center text-sm font-semibold text-gray-900 dark:text-gray-100 min-w-[120px] bg-success-50 dark:bg-success-900/20">
                                     V-Vector
                                 </th>
+                                <th scope="col"
+                                    class="px-3 py-3.5 text-center text-sm font-semibold text-gray-900 dark:text-gray-100 min-w-[100px] bg-gray-50 dark:bg-gray-800">
+                                    Rank
+                                </th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900">
@@ -80,7 +84,7 @@
                                     <td
                                         class="sticky left-0 z-10 bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800/50 whitespace-nowrap px-3 py-4 text-sm font-medium text-gray-900 dark:text-gray-100 border-r border-gray-200 dark:border-gray-700">
                                         <div class="space-y-1">
-                                            <div>{{ $alternative->code }}</div>
+                                            <div class="font-semibold">{{ $alternative->code }}</div>
                                             <div class="text-xs font-normal text-gray-500 dark:text-gray-400">
                                                 {{ $alternative->name }}
                                             </div>
@@ -127,6 +131,19 @@
                                             <span class="text-gray-400 dark:text-gray-600">—</span>
                                         @endif
                                     </td>
+                                    <td class="px-3 py-4 text-sm text-center bg-gray-50 dark:bg-gray-800">
+                                        @if ($altData && isset($altData['rank']))
+                                            <span
+                                                class="inline-flex items-center justify-center px-2 py-1 text-xs font-bold rounded-full
+                                                {{ $altData['rank'] == 1 ? 'bg-success-100 text-success-800 dark:bg-success-800 dark:text-success-100' : '' }}
+                                                {{ $altData['rank'] > 1 && $altData['rank'] <= 3 ? 'bg-warning-100 text-warning-800 dark:bg-warning-800 dark:text-warning-100' : '' }}
+                                                {{ $altData['rank'] > 3 ? 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300' : '' }}">
+                                                {{ $altData['rank'] }}
+                                            </span>
+                                        @else
+                                            <span class="text-gray-400 dark:text-gray-600">—</span>
+                                        @endif
+                                    </td>
                                 </tr>
                             @endforeach
                             {{-- TOTAL Row --}}
@@ -147,10 +164,7 @@
                                     </span>
                                 </td>
                                 <td class="px-3 py-4 text-sm text-center bg-gray-100 dark:bg-gray-800">
-                                    {{-- <span
-                                        class="inline-flex items-center rounded-md px-3 py-2 text-base font-mono font-bold text-success-800 dark:text-success-300 bg-success-200 dark:bg-success-900/50 ring-2 ring-inset ring-success-600/30 dark:ring-success-400/40">
-                                        {{ number_format(1.0000, 4) }}
-                                    </span> --}}
+                                    {{-- Empty cell for Rank column in TOTAL row --}}
                                 </td>
                             </tr>
                         </tbody>

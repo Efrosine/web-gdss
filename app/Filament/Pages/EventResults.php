@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace App\Filament\Pages;
 
+use App\Models\Alternative;
+use App\Models\Criterion;
+use App\Models\Evaluation;
 use App\Models\Event;
 use App\Models\User;
+use App\Models\WpResult;
 use App\Services\DecisionSupportService;
 use BackedEnum;
 use Filament\Actions\Action;
@@ -34,13 +38,14 @@ class EventResults extends Page implements HasForms, HasTable
 
     protected static string|UnitEnum|null $navigationGroup = 'Results';
 
-    protected static ?string $navigationLabel = 'Event Results';
+    protected static ?string $navigationLabel = 'Results Dashboard';
 
     protected static ?int $navigationSort = 1;
 
     protected string $view = 'filament.pages.event-results';
 
     public ?int $selectedEventId = null;
+    public ?int $userId = null;
     public ?array $bordaSettings = null;
     public ?array $completenessData = null;
     public bool $canManage = false;
@@ -64,9 +69,34 @@ class EventResults extends Page implements HasForms, HasTable
                     ->live()
                     ->afterStateUpdated(function ($state) {
                         $this->selectedEventId = $state;
+                        $this->userId = null; // Reset user when event changes
                         $this->loadEventData();
                     })
                     ->required(),
+
+                Select::make('userId')
+                    ->label('Decision Maker (Optional)')
+                    ->options(function () {
+                        if (!$this->selectedEventId) {
+                            return [];
+                        }
+
+                        // Get users who have WP results for this event
+                        $query = User::query()
+                            ->whereHas('wpResults', function ($q) {
+                            $q->where('event_id', $this->selectedEventId);
+                        });
+
+                        return $query->pluck('name', 'id');
+                    })
+                    ->searchable()
+                    ->preload()
+                    ->live()
+                    ->placeholder('Select to view individual WP matrix')
+                    ->disabled(fn() => !$this->selectedEventId)
+                    ->afterStateUpdated(fn($state) => $this->userId = $state)
+                    ->helperText('Leave empty to view only aggregated Borda results')
+                    ->columnSpanFull(),
 
                 KeyValue::make('bordaSettings')
                     ->label('Custom Borda Points (Rank → Points)')
@@ -236,6 +266,7 @@ class EventResults extends Page implements HasForms, HasTable
 
             if (!isset($matrix[$altId])) {
                 $matrix[$altId] = [
+                    'alternative_code' => $wp->alternative->code,
                     'alternative_name' => $wp->alternative->name,
                     'ranks' => array_fill(1, $totalAlternatives, 0), // Initialize all ranks with 0
                 ];
@@ -266,11 +297,128 @@ class EventResults extends Page implements HasForms, HasTable
         // Sort by final rank
         uasort($matrix, fn($a, $b) => $a['final_rank'] <=> $b['final_rank']);
 
-        $this->bordaMatrix = [
-            'data' => $matrix,
-            'max_rank' => $totalAlternatives,
-            'total_borda_points' => $bordaResults->sum('total_borda_points'),
-        ];
+        $this->bordaMatrix
+            = [
+                'data' => $matrix,
+                'max_rank' => $totalAlternatives,
+                'total_borda_points' => $bordaResults->sum('total_borda_points'),
+            ];
+    }
+
+    public function getAlternatives()
+    {
+        if (!$this->selectedEventId) {
+            return collect();
+        }
+
+        return Alternative::where('event_id', $this->selectedEventId)
+            ->orderBy('code')
+            ->get();
+    }
+
+    public function getCriteria()
+    {
+        if (!$this->selectedEventId) {
+            return collect();
+        }
+
+        return Criterion::where('event_id', $this->selectedEventId)
+            ->orderBy('name')
+            ->get();
+    }
+
+    public function getMatrixData()
+    {
+        if (!$this->selectedEventId || !$this->userId) {
+            return [];
+        }
+
+        // Fetch stored WP results from database
+        $wpResults = WpResult::where('event_id', $this->selectedEventId)
+            ->where('user_id', $this->userId)
+            ->with('alternative')
+            ->get();
+
+        if ($wpResults->isEmpty()) {
+            return [];
+        }
+
+        $alternatives = $this->getAlternatives();
+        $criteria = $this->getCriteria();
+
+        if ($alternatives->isEmpty() || $criteria->isEmpty()) {
+            return [];
+        }
+
+        // Get all evaluations for this event and user (for displaying criterion scores)
+        $evaluations = Evaluation::where('event_id', $this->selectedEventId)
+            ->where('user_id', $this->userId)
+            ->get()
+            ->keyBy(function ($evaluation) {
+                return "{$evaluation->alternative_id}:{$evaluation->criterion_id}";
+            });
+
+        // Calculate weight sum for power-by-weight display
+        $weightSum = $criteria->sum('weight');
+
+        if ($weightSum <= 0) {
+            return [];
+        }
+
+        $matrix = [];
+
+        // Build matrix using stored WP results
+        foreach ($wpResults as $wpResult) {
+            $altId = $wpResult->alternative_id;
+
+            $matrix[$altId] = [
+                'criteria' => [],
+                's_vector' => $wpResult->s_vector,
+                'v_vector' => $wpResult->v_vector,
+                'rank' => $wpResult->individual_rank,
+            ];
+
+            // Calculate power-by-weight values for display (not used in actual calculation)
+            foreach ($criteria as $criterion) {
+                $critId = $criterion->id;
+                $key = "{$altId}:{$critId}";
+
+                $evaluation = $evaluations->get($key);
+
+                if (!$evaluation) {
+                    $matrix[$altId]['criteria'][$critId] = null;
+                    continue;
+                }
+
+                $score = (float) $evaluation->score_value;
+                $weight = (float) $criterion->weight;
+                $normalizedWeight = $weight / $weightSum;
+
+                // Determine power based on attribute type
+                $power = $criterion->attribute_type === 'benefit'
+                    ? abs($normalizedWeight)
+                    : -abs($normalizedWeight);
+
+                // Calculate power-by-weight value: score^power (for display only)
+                $powerByWeight = pow($score, $power);
+
+                $matrix[$altId]['criteria'][$critId] = $powerByWeight;
+            }
+        }
+
+        return $matrix;
+    }
+
+    public function getTotalSVector()
+    {
+        if (!$this->selectedEventId || !$this->userId) {
+            return 0.0;
+        }
+
+        // Sum S-vectors from stored WP results
+        return WpResult::where('event_id', $this->selectedEventId)
+            ->where('user_id', $this->userId)
+            ->sum('s_vector');
     }
 
     public static function canAccess(): bool
